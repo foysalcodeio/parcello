@@ -14,7 +14,7 @@ const fadeUp = {
 
 const Footer = () => {
   return (
-    <footer className="bg-black text-white p-5 text-center border rounded-3xl">
+    <footer className="bg-black text-white p-5 text-center rounded-3xl">
       {/* Logo + Description */}
       <motion.div
         variants={fadeUp}
@@ -46,7 +46,7 @@ const Footer = () => {
             className="relative group transition hover:text-lime-400"
           >
             {item}
-            <span className="absolute left-0 -bottom-1 w-0 h-[2px] bg-lime-400 transition-all duration-300 group-hover:w-full"></span>
+            <span className="absolute left-0 -bottom-1 w-0 h-0.5 bg-lime-400 transition-all duration-300 group-hover:w-full"></span>
           </a>
         ))}
       </motion.nav>

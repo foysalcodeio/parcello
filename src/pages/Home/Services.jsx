@@ -81,7 +81,7 @@ const Services = () => (
   <section className="relative py-24 px-4 md:px-10 overflow-hidden">
     {/* Background layers */}
     <div className="absolute inset-0 bg-linear-to-b from-gray-50 via-blue-50 to-gray-100"></div>
-    <div className="absolute inset-0 bg-blue-50 opacity-40"></div>
+    <div className="absolute inset-0  opacity-40"></div>
 
     {/* Content */}
     <div className="relative z-10">
@@ -129,7 +129,7 @@ const Services = () => (
             key={idx}
             variants={fadeUp}           // entrance animation
             whileHover={hoverCard.hover} // hover animation
-            className="relative rounded-3xl bg-white p-8 shadow-lg cursor-pointer transition-all duration-300"
+            className="relative rounded-3xl p-8 shadow-lg cursor-pointer transition-all duration-300"
           >
             {/* Icon with float */}
             <motion.div
