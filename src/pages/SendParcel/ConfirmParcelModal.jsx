@@ -1,3 +1,4 @@
+
 const ConfirmParcelModal = ({
   isOpen,
   onClose,
@@ -8,74 +9,108 @@ const ConfirmParcelModal = ({
 }) => {
   if (!isOpen) return null;
 
+  const isWithinCity =
+    bookingData?.senderRegion === bookingData?.receiverRegion;
+
+  const weight = parseFloat(bookingData?.parcelWeight) || 0;
+  const parcelType = bookingData?.parcelType;
+
   return (
-    <div className="modal modal-open">
-      <div className="modal-box max-w-md bg-white rounded-3xl shadow-2xl border-2 border-[#C4D82E]">
-        <div className="text-center mb-6">
-          <div className="w-16 h-16 bg-linear-to-br from-[#C4D82E] to-[#d4e84a] rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-md">
+      <div className="w-full max-w-lg mx-4 rounded-3xl bg-white/70 backdrop-blur-xl shadow-2xl border border-white/30 animate-fadeIn">
+
+        {/* Header */}
+        <div className="text-center p-6 border-b border-gray-200">
+          <div className="w-20 h-20 bg-linear-to-br from-[#C4D82E] to-[#eaff57] rounded-full flex items-center justify-center mx-auto mb-3 shadow-lg">
+            <svg className="w-10 h-10 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h3 className="font-bold text-3xl text-[#1a4d5c] mb-2">Confirm Booking</h3>
-          <p className="text-gray-600">Review your parcel details</p>
+          <h3 className="text-3xl font-extrabold text-[#1a4d5c]">
+            Confirm Parcel Booking
+          </h3>
+          <p className="text-gray-600 mt-1">
+            Please review all details before payment
+          </p>
         </div>
 
-        <div className="bg-linear-to-br from-gray-50 to-white p-6 rounded-2xl mb-6">
-          <div className="text-center mb-4">
-            <p className="text-sm text-gray-600 mb-1">Estimated Delivery Cost</p>
-            <p className="text-4xl font-bold bg-linear-to-r from-[#1a4d5c] to-[#2d7a8f] bg-clip-text text-transparent">
-              Tk {cost}
-            </p>
-          </div>
+        {/* Price Card */}
+        <div className="p-6">
+          <div className="bg-linear-to-br from-[#1a4d5c] to-[#2d7a8f] text-white rounded-2xl p-6 shadow-xl text-center">
+            <p className="text-sm opacity-80">Total Delivery Cost</p>
+            <h2 className="text-5xl font-black mt-2 tracking-wide">
+              ৳ {cost}
+            </h2>
 
-          <div className="divider"></div>
-
-          <div className="space-y-3 text-sm">
-            <div className="flex justify-between">
-              <span className="text-gray-600">Parcel:</span>
-              <span className="font-semibold text-gray-800">
-                {bookingData?.parcelTitle}
+            <div className="flex justify-center gap-3 text-xs mt-4">
+              <span className="px-3 py-1 bg-white/20 rounded-full">
+                {parcelType === "document" ? "Document" : "Non-Document"}
               </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">From:</span>
-              <span className="font-semibold text-gray-800 text-right">
-                {bookingData?.senderAddress}
+              <span className="px-3 py-1 bg-white/20 rounded-full">
+                {isWithinCity ? "Within City" : "Outside City"}
               </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">To:</span>
-              <span className="font-semibold text-gray-800 text-right">
-                {bookingData?.receiverAddress}
-              </span>
+              {parcelType === "non-document" && (
+                <span className="px-3 py-1 bg-white/20 rounded-full">
+                  {weight} KG
+                </span>
+              )}
             </div>
           </div>
         </div>
 
-        <div className="flex gap-3 justify-center">
+        {/* Details Section */}
+        <div className="px-6 space-y-4 text-sm text-gray-700">
+          <div className="flex justify-between">
+            <span className="text-gray-500">Parcel Name</span>
+            <span className="font-semibold">
+              {bookingData?.parcelTitle}
+            </span>
+          </div>
+
+          <div className="flex justify-between">
+            <span className="text-gray-500">From</span>
+            <span className="font-semibold text-right max-w-[60%]">
+              {bookingData?.senderAddress}
+            </span>
+          </div>
+
+          <div className="flex justify-between">
+            <span className="text-gray-500">To</span>
+            <span className="font-semibold text-right max-w-[60%]">
+              {bookingData?.receiverAddress}
+            </span>
+          </div>
+
+          <div className="flex justify-between">
+            <span className="text-gray-500">Pickup Region</span>
+            <span className="font-semibold capitalize">
+              {bookingData?.senderRegion}
+            </span>
+          </div>
+
+          <div className="flex justify-between">
+            <span className="text-gray-500">Delivery Region</span>
+            <span className="font-semibold capitalize">
+              {bookingData?.receiverRegion}
+            </span>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex justify-between gap-4 p-6 border-t border-gray-200 mt-6">
           <button
-            className="btn btn-ghost rounded-xl px-6 hover:bg-gray-100"
             onClick={onClose}
+            className="w-full py-3 rounded-xl border-2 border-gray-300 text-gray-700 font-semibold hover:bg-gray-100 transition-all"
           >
             Cancel
           </button>
 
           <button
-            className="btn bg-linear-to-r from-[#C4D82E] to-[#d4e84a] hover:from-[#b5c929] hover:to-[#C4D82E] text-black border-none rounded-xl px-8 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 font-bold"
             onClick={onConfirm}
             disabled={loading}
+            className="w-full py-3 rounded-xl bg-linear-to-r from-[#C4D82E] to-[#eaff57] text-black font-bold shadow-xl hover:scale-105 transition-transform"
           >
-            {loading ? (
-              <span className="loading loading-spinner"></span>
-            ) : (
-              <>
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Confirm & Pay
-              </>
-            )}
+            {loading ? "Processing..." : "Confirm & Pay"}
           </button>
         </div>
       </div>
