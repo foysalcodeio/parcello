@@ -1,13 +1,16 @@
-
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import useAuth from '../../hooks/useAuth';
-import { db } from '../../firebase/firebase.init';
-import { collection, addDoc } from 'firebase/firestore';
 import ConfirmParcelModal from './ConfirmParcelModal';
 import { useLoaderData } from 'react-router-dom';
+import Swal from 'sweetalert2';
 
-
+const generateTrackingId = () => {
+    const prefix = "TRK";
+    const random = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const timestamp = Date.now().toString().slice(-6);
+    return `${prefix}-${timestamp}-${random}`;
+};
 
 const SendParcel = () => {
     const { user } = useAuth();
@@ -18,103 +21,108 @@ const SendParcel = () => {
         }
     });
 
-    const serviceCenter = useLoaderData();
+    const serviceCenter = useLoaderData() || [];
     // Get unique regions from service centers
-    const uniqueRegions = [...new Set(serviceCenter.map(center => center.region))];
-    // Function to get districts based on selected region
-    const getDistrictsByRegion = (region) => {
-        return serviceCenter
-            .filter(center => center.region === region)
-            .map(center => center.district);
-    }
+    // Safely map only if serviceCenter is an array
+    const uniqueRegions = Array.isArray(serviceCenter)
+        ? [...new Set(serviceCenter.map(center => center.region))]
+        : [];
+
+
 
     const [cost, setCost] = useState(0);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [bookingData, setBookingData] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [trackingId, setTrackingId] = useState(generateTrackingId());
 
     const parcelType = watch('parcelType');
-    const senderRegion = watch('senderRegion');
-    const receiverRegion = watch('receiverRegion');
 
-    // Watch sender details to update name if user loads later (though usually user is already there)
+
+    // Watch sender details to update name if user loads later
     useEffect(() => {
         if (user?.displayName) {
             setValue('senderName', user.displayName);
         }
     }, [user, setValue]);
 
+    const calculateCost = (data) => {
+        const isWithinCity = data.senderRegion === data.receiverRegion;
+        const type = data.parcelType;
+        const weight = parseFloat(data.parcelWeight) || 0;
 
+        let cost = 0;
 
-const calculateCost = (data) => {
-    const isWithinCity = data.senderRegion === data.receiverRegion;
-    const type = data.parcelType;
-    const weight = parseFloat(data.parcelWeight) || 0;
-
-    let cost = 0;
-
-    if (type === 'document') {
-        // Document price
-        cost = isWithinCity ? 60 : 80;
-    } else {
-        // Non-document
-        if (weight <= 3) {
-            cost = isWithinCity ? 110 : 150;
+        if (type === 'document') {
+            // Document price
+            cost = isWithinCity ? 60 : 80;
         } else {
-            const extraWeight = Math.ceil(weight - 3);
-            const extraCharge = extraWeight * 40;
-
-            if (isWithinCity) {
-                cost = 110 + extraCharge;
+            // Non-document
+            if (weight <= 3) {
+                cost = isWithinCity ? 110 : 150;
             } else {
-                cost = 150 + extraCharge + 40; // extra ৳40 for outside city
+                const extraWeight = Math.ceil(weight - 3);
+                const extraCharge = extraWeight * 40;
+
+                if (isWithinCity) {
+                    cost = 110 + extraCharge;
+                } else {
+                    cost = 150 + extraCharge + 40; // extra ৳40 for outside city
+                }
             }
         }
-    }
 
-    return cost;
-};
-
+        return cost;
+    };
 
     const onSubmit = (data) => {
         const calculatedCost = calculateCost(data);
         setCost(calculatedCost);
         setBookingData(data);
+        console.log('from parcel section ', data);
         setIsModalOpen(true);
     };
 
     const handleConfirmBooking = async () => {
         if (!bookingData) return;
         setLoading(true);
-
         try {
-            const docRef = await addDoc(collection(db, "parcels"), {
-                ...bookingData,
-                cost,
-                status: 'pending',
-                bookingDate: new Date().toISOString(),
-                senderEmail: user?.email, // Store email for query purposes
-                senderName: user?.displayName
-            });
-            console.log("Document written with ID: ", docRef.id);
-            setIsModalOpen(false);
-            alert("Parcel booked successfully!");
-            // navigate('/my-parcels'); // Redirect if needed
+            // Fake delay to simulate processing
+            await new Promise(resolve => setTimeout(resolve, 1500));
 
-           
-        } catch (e) {
-            console.error("Error adding document: ", e);
-            alert("Error booking parcel. Please try again.");
-        } finally {
+            Swal.fire({
+                icon: 'success',
+                title: 'Parcel Booked Successfully!',
+                html: `
+                    <p>Your parcel has been booked.</p>
+                    <p style="margin-top:5px;"><b>Tracking ID:</b> ${trackingId}</p>
+                `,
+                confirmButtonText: 'OK',
+            });
+
+            setIsModalOpen(false);
+            setLoading(false);
+            setTrackingId(generateTrackingId()); // Generate new ID for next booking
+
+        } catch (error) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Booking Failed',
+                text: 'Something went wrong. Please try again.',
+            });
             setLoading(false);
         }
     };
 
-
-
     return (
         <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-gray-100 py-12">
-            <div className="container mx-auto px-4 max-w-6xl">
+            <div className="container mx-auto px-4 max-w-6xl grid">
+                {trackingId && (
+                    <div className="mb-6 p-4 bg-green-100 border border-green-300 text-green-800 rounded-lg text-center">
+                        <strong>Your Tracking ID:</strong> {trackingId}
+                    </div>
+                )}
+
                 {/* Header Section */}
                 <div className="text-center mb-10">
                     <h1 className="text-5xl font-bold mb-3 bg-linear-to-r from-[#1a4d5c] to-[#2d7a8f] bg-clip-text text-transparent">
@@ -156,8 +164,6 @@ const calculateCost = (data) => {
                                         />
                                         <span className="label-text font-semibold text-gray-700">Not-Document</span>
                                     </label>
-
-
                                 </div>
                             </div>
 
@@ -214,9 +220,9 @@ const calculateCost = (data) => {
                                             />
                                         </div>
                                         <div className="form-control w-full">
-                                            <label className="label"><span className="label-text font-semibold text-gray-800">Pickup Wire House</span></label>
+                                            <label className="label"><span className="label-text font-semibold text-gray-800">Pickup Warehouse</span></label>
                                             <select className="select select-bordered w-full bg-white border-2 border-gray-200 focus:border-[#C4D82E] rounded-xl transition-all duration-200" {...register("senderServiceCenter", { required: true })}>
-                                                <option value="">Select Wire house</option>
+                                                <option value="">Select Warehouse</option>
                                                 <option value="center_a">Center A</option>
                                                 <option value="center_b">Center B</option>
                                             </select>
@@ -279,9 +285,9 @@ const calculateCost = (data) => {
                                             {errors.receiverName && <span className="text-error text-sm">Name is required</span>}
                                         </div>
                                         <div className="form-control w-full">
-                                            <label className="label"><span className="label-text font-semibold text-gray-800">Delivery Wire House</span></label>
+                                            <label className="label"><span className="label-text font-semibold text-gray-800">Delivery Warehouse</span></label>
                                             <select className="select select-bordered w-full bg-white border-2 border-gray-200 focus:border-[#C4D82E] rounded-xl transition-all duration-200" {...register("receiverServiceCenter", { required: true })}>
-                                                <option value="">Select Wire house</option>
+                                                <option value="">Select Warehouse</option>
                                                 <option value="center_a">Center A</option>
                                                 <option value="center_b">Center B</option>
                                             </select>
@@ -328,7 +334,7 @@ const calculateCost = (data) => {
 
                         {/* Instruction Fields - Side by Side */}
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                            <div className="form-control">                            
+                            <div className="form-control">
                                 <textarea
                                     className="textarea w-full textarea-bordered h-28 bg-white border-2 border-gray-200 focus:border-[#C4D82E] rounded-xl transition-all duration-200 resize-none"
                                     placeholder="Enter pickup instructions (optional)"
@@ -374,10 +380,13 @@ const calculateCost = (data) => {
                 onConfirm={handleConfirmBooking}
                 loading={loading}
                 cost={cost}
+                user={user}
                 bookingData={bookingData}
+                trackingId={trackingId}
             />
 
         </div>
+
     );
 };
 
