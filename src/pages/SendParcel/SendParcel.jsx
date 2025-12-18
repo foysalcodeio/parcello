@@ -24,12 +24,9 @@ const SendParcel = () => {
     const serviceCenter = useLoaderData() || [];
     // Get unique regions from service centers
     // Safely map only if serviceCenter is an array
-    const uniqueRegions = Array.isArray(serviceCenter)
-        ? [...new Set(serviceCenter.map(center => center.region))]
-        : [];
+    const uniqueRegions = Array.isArray(serviceCenter) ? [...new Set(serviceCenter.map(center => center.region))] : [];
 
-
-
+    
     const [cost, setCost] = useState(0);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [bookingData, setBookingData] = useState(null);
@@ -71,15 +68,17 @@ const SendParcel = () => {
                 }
             }
         }
-
         return cost;
     };
 
     const onSubmit = (data) => {
         const calculatedCost = calculateCost(data);
         setCost(calculatedCost);
-        setBookingData(data);
-        console.log('from parcel section ', data);
+
+        const payload = { ...data, trackingId };
+
+        setBookingData(payload);
+        console.log('from parcel section ', payload);
         setIsModalOpen(true);
     };
 
@@ -103,6 +102,7 @@ const SendParcel = () => {
             setIsModalOpen(false);
             setLoading(false);
             setTrackingId(generateTrackingId()); // Generate new ID for next booking
+            
 
         } catch (error) {
             Swal.fire({
@@ -369,6 +369,7 @@ const SendParcel = () => {
                                 Proceed to Confirm Booking
                             </button>
                         </div>
+
                     </form>
                 </div>
             </div>
