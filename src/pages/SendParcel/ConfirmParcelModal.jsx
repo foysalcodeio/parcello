@@ -1,23 +1,45 @@
+import { useState } from "react";
+import Swal from "sweetalert2";
+
+
 
 const ConfirmParcelModal = ({
   isOpen,
   onClose,
-  onConfirm,
   loading,
   cost,
-  bookingData
+  bookingData,
+  user,
+  trackingId
 }) => {
   if (!isOpen) return null;
 
-  const isWithinCity =
-    bookingData?.senderRegion === bookingData?.receiverRegion;
+  const isWithinCity = bookingData?.senderRegion === bookingData?.receiverRegion;
 
   const weight = parseFloat(bookingData?.parcelWeight) || 0;
   const parcelType = bookingData?.parcelType;
+  const orderTime = new Date().toLocaleString();
+
+  const [paymentMethod, setPaymentMethod] = useState("card");
+
+  const handleSweetConfirm = () => {
+    Swal.fire({
+      title: "Confirm Payment?",
+      text: `Total Cost: ৳ ${cost}`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "Yes, Continue",
+      cancelButtonText: "Back"
+    }).then((result) => {
+      if (result.isConfirmed) {
+        onConfirm();
+      }
+    });
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-md">
-      <div className="w-full max-w-lg mx-4 rounded-3xl bg-white/70 backdrop-blur-xl shadow-2xl border border-white/30 animate-fadeIn">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-md p-4">
+      <div className="w-full max-w-lg h-[90vh] overflow-y-auto rounded-3xl bg-white/70 backdrop-blur-xl shadow-2xl border border-white/30 animate-fadeIn">
 
         {/* Header */}
         <div className="text-center p-6 border-b border-gray-200">
@@ -38,62 +60,90 @@ const ConfirmParcelModal = ({
         <div className="p-6">
           <div className="bg-linear-to-br from-[#1a4d5c] to-[#2d7a8f] text-white rounded-2xl p-6 shadow-xl text-center">
             <p className="text-sm opacity-80">Total Delivery Cost</p>
-            <h2 className="text-5xl font-black mt-2 tracking-wide">
-              ৳ {cost}
-            </h2>
+            <h2 className="text-5xl font-black mt-2 tracking-wide">৳ {cost}</h2>
 
-            <div className="flex justify-center gap-3 text-xs mt-4">
-              <span className="px-3 py-1 bg-white/20 rounded-full">
-                {parcelType === "document" ? "Document" : "Non-Document"}
-              </span>
-              <span className="px-3 py-1 bg-white/20 rounded-full">
-                {isWithinCity ? "Within City" : "Outside City"}
-              </span>
-              {parcelType === "non-document" && (
-                <span className="px-3 py-1 bg-white/20 rounded-full">
-                  {weight} KG
-                </span>
-              )}
+            <div className="flex justify-center gap-3 text-xs mt-4 flex-wrap">
+              <span className="px-3 py-1 bg-white/20 rounded-full">{parcelType === "document" ? "Document" : "Non-Document"}</span>
+              <span className="px-3 py-1 bg-white/20 rounded-full">{isWithinCity ? "Within City" : "Outside City"}</span>
+              {parcelType === "non-document" && <span className="px-3 py-1 bg-white/20 rounded-full">{weight} KG</span>}
             </div>
           </div>
         </div>
 
+        {/* <div className="flex justify-between">
+          <span className="text-gray-500">Tracking ID</span>
+          <span className="font-semibold text-blue-600">{trackingId}</span>
+        </div> */}
+
+
         {/* Details Section */}
-        <div className="px-6 space-y-4 text-sm text-gray-700">
-          <div className="flex justify-between">
-            <span className="text-gray-500">Parcel Name</span>
-            <span className="font-semibold">
-              {bookingData?.parcelTitle}
-            </span>
+        <div className="px-6 space-y-3 text-sm text-gray-700">
+          {[
+            { label: "Tracking ID", value: trackingId },
+            { label: "Sender Name", value: user?.name || bookingData?.senderName },
+            { label: "Parcel Name", value: bookingData?.parcelTitle },
+            { label: "Order Time", value: orderTime },
+            { label: "From", value: bookingData?.senderAddress },
+            { label: "To", value: bookingData?.receiverAddress },
+            { label: "Pickup Region", value: bookingData?.senderRegion },
+            { label: "Delivery Region", value: bookingData?.receiverRegion }
+          ].map((item) => (
+            <div key={item.label} className="flex justify-between">
+              <span className="text-gray-500">{item.label}</span>
+              <span className="font-semibold text-right max-w-[60%]">{item.value}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Payment Options */}
+        <div className="px-6 mt-5 text-sm space-y-3">
+          <h4 className="font-semibold">Payment Method</h4>
+
+          <div className="flex gap-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="radio" checked={paymentMethod === "card"} onChange={() => setPaymentMethod("card")} />
+              Credit / Debit Card
+            </label>
+
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="radio" checked={paymentMethod === "cod"} onChange={() => setPaymentMethod("cod")} />
+              Cash On Delivery
+            </label>
           </div>
 
-          <div className="flex justify-between">
-            <span className="text-gray-500">From</span>
-            <span className="font-semibold text-right max-w-[60%]">
-              {bookingData?.senderAddress}
-            </span>
-          </div>
+          {paymentMethod === "card" && (
+            <div className="px-6 space-y-4">
+              <h4 className="text-lg font-bold text-[#1a4d5c]">Select Payment Method</h4>
 
-          <div className="flex justify-between">
-            <span className="text-gray-500">To</span>
-            <span className="font-semibold text-right max-w-[60%]">
-              {bookingData?.receiverAddress}
-            </span>
-          </div>
+              {/* Card Type Grid */}
+              <div className="grid grid-cols-2 gap-3">
+                {["Visa Card", "Master Card", "Debit Card", "Mobile Banking"].map((item) => (
+                  <label key={item} className="cursor-pointer">
+                    <input type="radio" name="paymentType" className="hidden peer" />
+                    <div className="p-3 rounded-xl border-2 border-gray-200 
+                        peer-checked:border-[#C4D82E] peer-checked:bg-[#f7fbdf] 
+                        transition-all text-center font-semibold text-sm">
+                      💳 {item}
+                    </div>
+                  </label>
+                ))}
+              </div>
 
-          <div className="flex justify-between">
-            <span className="text-gray-500">Pickup Region</span>
-            <span className="font-semibold capitalize">
-              {bookingData?.senderRegion}
-            </span>
-          </div>
+              {/* Compact Card Form (2 Column) */}
+              <div className="grid grid-cols-2 gap-3 mt-3">
+                <input type="text" placeholder="Cardholder" className="input input-bordered rounded-xl" />
+                <input type="text" placeholder="Card Number" className="input input-bordered rounded-xl" />
+                <input type="text" placeholder="MM/YY" className="input input-bordered rounded-xl" />
+                <input type="password" placeholder="CVV" className="input input-bordered rounded-xl" />
+              </div>
+            </div>
+          )}
 
-          <div className="flex justify-between">
-            <span className="text-gray-500">Delivery Region</span>
-            <span className="font-semibold capitalize">
-              {bookingData?.receiverRegion}
-            </span>
-          </div>
+          {paymentMethod === "cod" && (
+            <div className="mt-3 p-3 bg-green-50 text-green-700 rounded-xl">
+              You will pay in cash when the parcel is delivered.
+            </div>
+          )}
         </div>
 
         {/* Actions */}
@@ -102,15 +152,15 @@ const ConfirmParcelModal = ({
             onClick={onClose}
             className="w-full py-3 rounded-xl border-2 border-gray-300 text-gray-700 font-semibold hover:bg-gray-100 transition-all"
           >
-            Cancel
+            Continue Editing
           </button>
 
           <button
-            onClick={onConfirm}
+            onClick={handleSweetConfirm}
             disabled={loading}
             className="w-full py-3 rounded-xl bg-linear-to-r from-[#C4D82E] to-[#eaff57] text-black font-bold shadow-xl hover:scale-105 transition-transform"
           >
-            {loading ? "Processing..." : "Confirm & Pay"}
+            {loading ? "Processing..." : "Process to Continue"}
           </button>
         </div>
       </div>

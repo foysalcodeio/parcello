@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import useAuth from '../../hooks/useAuth';
-import ConfirmParcelModal from './ConfirmParcelModal';
 import { useLoaderData } from 'react-router-dom';
 import Swal from 'sweetalert2';
 
@@ -15,105 +14,112 @@ const generateTrackingId = () => {
 const SendParcel = () => {
     const { user } = useAuth();
     //this section is react hook form related
-    const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm({
-        defaultValues: {
-            parcelType: 'document',
-        }
-    });
+    const { register, handleSubmit, watch, formState: { errors } } = useForm();
 
     const serviceCenter = useLoaderData() || [];
     // Get unique regions from service centers
     // Safely map only if serviceCenter is an array
-    const uniqueRegions = Array.isArray(serviceCenter) ? [...new Set(serviceCenter.map(center => center.region))] : [];
+    //advanced
+    // const uniqueRegions = Array.isArray(serviceCenter) ? [...new Set(serviceCenter.map(center => center.region))] : [];
 
-    
-    const [cost, setCost] = useState(0);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [bookingData, setBookingData] = useState(null);
-    const [loading, setLoading] = useState(false);
-    const [trackingId, setTrackingId] = useState(generateTrackingId());
+
+    const uniqueRegions = [...new Set(serviceCenter.map(center => center.region))];
+    const getDistinctRegions = (region) => 
+        serviceCenter.filter((center) => center.region === region).map((center) => center.district);
+
 
     const parcelType = watch('parcelType');
+    const senderRegion = watch('senderRegion');
+    const receiverRegion = watch('receiverRegion');
+
+    
+    // const [cost, setCost] = useState(0);
+    // const [isModalOpen, setIsModalOpen] = useState(false);
+    // const [bookingData, setBookingData] = useState(null);
+    // const [loading, setLoading] = useState(false);
+    // const [trackingId, setTrackingId] = useState(generateTrackingId());
 
 
-    // Watch sender details to update name if user loads later
-    useEffect(() => {
-        if (user?.displayName) {
-            setValue('senderName', user.displayName);
-        }
-    }, [user, setValue]);
 
-    const calculateCost = (data) => {
-        const isWithinCity = data.senderRegion === data.receiverRegion;
-        const type = data.parcelType;
-        const weight = parseFloat(data.parcelWeight) || 0;
+    // // Watch sender details to update name if user loads later
+    // useEffect(() => {
+    //     if (user?.displayName) {
+    //         setValue('senderName', user.displayName);
+    //     }
+    // }, [user, setValue]);
+
+   const onSubmit = data => {
+        console.log(data);
+
+        const isDocument = data.parcelType === 'document';
+        const isSameDistrict = data.senderDistrict === data.receiverDistrict;
+        const parcelWeight = parseFloat(data.parcelWeight);
 
         let cost = 0;
+        if (isDocument) {
+            cost = isSameDistrict ? 60 : 80;
+        }
+        else {
+            if (parcelWeight < 3) {
+                cost = isSameDistrict ? 110 : 150;
+            }
+            else {
+                const minCharge = isSameDistrict ? 110 : 150;
+                const extraWeight = parcelWeight - 3;
+                const extraCharge = isSameDistrict ? extraWeight * 40 : extraWeight * 40 + 40;
 
-        if (type === 'document') {
-            // Document price
-            cost = isWithinCity ? 60 : 80;
-        } else {
-            // Non-document
-            if (weight <= 3) {
-                cost = isWithinCity ? 110 : 150;
-            } else {
-                const extraWeight = Math.ceil(weight - 3);
-                const extraCharge = extraWeight * 40;
-
-                if (isWithinCity) {
-                    cost = 110 + extraCharge;
-                } else {
-                    cost = 150 + extraCharge + 40; // extra ৳40 for outside city
-                }
+                cost = minCharge + extraCharge;
             }
         }
-        return cost;
-    };
 
-    const onSubmit = (data) => {
-        const calculatedCost = calculateCost(data);
-        setCost(calculatedCost);
+        console.log('cost', cost);
+        data.cost = cost;
 
-        const payload = { ...data, trackingId };
+        Swal.fire({
+            title: "Agree with the Cost?",
+            text: `You will be charged ${cost} taka!`,
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonColor: "#3085d6",
+            cancelButtonColor: "#d33",
+            confirmButtonText: "Confirm and Continue Payment!"
+        }).then((result) => {
+            if (result.isConfirmed) {
 
-        setBookingData(payload);
-        console.log('from parcel section ', payload);
-        setIsModalOpen(true);
-    };
+                const parcelData = {
+                    ...data,
+                    cost: totalCost,
+                    created_by: user?.email,
+                    payment_status: 'unpaid',
+                    delivery_status: 'pending',
+                    trackingId: generateTrackingId(),
+                    orderTime: new Date().toISOString()
+                }
 
-    const handleConfirmBooking = async () => {
-        if (!bookingData) return;
-        setLoading(true);
-        try {
-            // Fake delay to simulate processing
-            await new Promise(resolve => setTimeout(resolve, 1500));
+                console.log('Final Parcel Data to submit:', parcelData);
 
-            Swal.fire({
-                icon: 'success',
-                title: 'Parcel Booked Successfully!',
-                html: `
-                    <p>Your parcel has been booked.</p>
-                    <p style="margin-top:5px;"><b>Tracking ID:</b> ${trackingId}</p>
-                `,
-                confirmButtonText: 'OK',
-            });
+                // // save the parcel info to the database
+                // axiosSecure.post('/parcels', data)
+                //     .then(res => {
+                //         console.log('after saving parcel', res.data);
+                //         if (res.data.insertedId) {
+                //             navigate('/dashboard/my-parcels')
+                //             Swal.fire({
+                //                 position: "top-end",
+                //                 icon: "success",
+                //                 title: "Parcel has created. Please Pay",
+                //                 showConfirmButton: false,
+                //                 timer: 2500
+                //             });
+                //         }
+                //     })
 
-            setIsModalOpen(false);
-            setLoading(false);
-            setTrackingId(generateTrackingId()); // Generate new ID for next booking
-            
+            }
+        });
 
-        } catch (error) {
-            Swal.fire({
-                icon: 'error',
-                title: 'Booking Failed',
-                text: 'Something went wrong. Please try again.',
-            });
-            setLoading(false);
-        }
-    };
+    }
 
+  
     return (
         <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-gray-100 py-12">
             <div className="container mx-auto px-4 max-w-6xl grid">
