@@ -1,9 +1,15 @@
-import { useState, useEffect } from 'react';
+
 import { useForm } from 'react-hook-form';
-import useAuth from '../../hooks/useAuth';
 import { useLoaderData } from 'react-router-dom';
 import Swal from 'sweetalert2';
 
+import useAuth from '../../hooks/useAuth';
+import useAxiosSecure from '../../hooks/useAxiosSecure';
+
+
+/* ================================
+   Tracking ID Generator
+================================ */
 const generateTrackingId = () => {
     const prefix = "TRK";
     const random = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -11,123 +17,249 @@ const generateTrackingId = () => {
     return `${prefix}-${timestamp}-${random}`;
 };
 
+/* ================================
+   Component
+================================ */
+
 const SendParcel = () => {
     const { user } = useAuth();
+    const axiosSecure = useAxiosSecure();
     //this section is react hook form related
     const { register, handleSubmit, watch, formState: { errors } } = useForm();
 
     const serviceCenter = useLoaderData() || [];
-    // Get unique regions from service centers
-    // Safely map only if serviceCenter is an array
-    //advanced
-    // const uniqueRegions = Array.isArray(serviceCenter) ? [...new Set(serviceCenter.map(center => center.region))] : [];
 
-
+    /* ================================
+       Helpers
+    ================================ */
     const uniqueRegions = [...new Set(serviceCenter.map(center => center.region))];
-    const getDistinctRegions = (region) => 
-        serviceCenter.filter((center) => center.region === region).map((center) => center.district);
 
+    const getDistinctRegions = (region) => {
+        if (!region) return [];
+        return serviceCenter
+            .filter(center => center.region === region)
+            .map(center => center.district);
+    };
 
+    /* ================================
+        Watched Fields
+     ================================ */
     const parcelType = watch('parcelType');
     const senderRegion = watch('senderRegion');
     const receiverRegion = watch('receiverRegion');
 
-    
-    // const [cost, setCost] = useState(0);
-    // const [isModalOpen, setIsModalOpen] = useState(false);
-    // const [bookingData, setBookingData] = useState(null);
-    // const [loading, setLoading] = useState(false);
-    // const [trackingId, setTrackingId] = useState(generateTrackingId());
-
-
-
-    // // Watch sender details to update name if user loads later
-    // useEffect(() => {
-    //     if (user?.displayName) {
-    //         setValue('senderName', user.displayName);
-    //     }
-    // }, [user, setValue]);
-
-   const onSubmit = data => {
-        console.log(data);
-
+    /* ================================
+       Submit Handler
+    ================================ */
+    const handleSendParcel = data => {
         const isDocument = data.parcelType === 'document';
-        const isSameDistrict = data.senderDistrict === data.receiverDistrict;
-        const parcelWeight = parseFloat(data.parcelWeight);
+        const isSameDistrict = data.senderRegion === data.receiverRegion;
+
+
+        const parcelWeight = parseFloat(data.parcelWeight || 0);
 
         let cost = 0;
+        let breakdown = "";
+        if (!isDocument && parcelWeight <= 0) {
+            return Swal.fire("Invalid Weight", "Weight must be greater than 0", "error");
+        }
+
+
         if (isDocument) {
             cost = isSameDistrict ? 60 : 80;
-        }
-        else {
-            if (parcelWeight < 3) {
+            breakdown = `Document delivery ${isSameDistrict ? "within same district" : "to different district"
+                }: ${cost} taka.`;
+        } else {
+            if (parcelWeight <= 3) {
                 cost = isSameDistrict ? 110 : 150;
-            }
-            else {
-                const minCharge = isSameDistrict ? 110 : 150;
-                const extraWeight = parcelWeight - 3;
-                const extraCharge = isSameDistrict ? extraWeight * 40 : extraWeight * 40 + 40;
+                breakdown = `Non-document up to 3kg ${isSameDistrict ? "within same district" : "to different district"
+                    }: ${cost} taka.`;
+            } else {
+                const extraKg = parcelWeight - 3;
+                const baseCost = isSameDistrict ? 110 : 150;
+                const perKgCharge = extraKg * 40;
+                const districtExtra = isSameDistrict ? 0 : 40;
 
-                cost = minCharge + extraCharge;
+                cost = baseCost + perKgCharge + districtExtra;
+
+                breakdown = `Non-document over 3kg: 
+            Base ${baseCost} + 
+            Extra ${extraKg}kg (${perKgCharge}) + 
+            District Extra (${districtExtra}) = ${cost} taka.`;
             }
         }
-
-        console.log('cost', cost);
-        data.cost = cost;
 
         Swal.fire({
-            title: "Agree with the Cost?",
-            text: `You will be charged ${cost} taka!`,
+            title: "Confirm Parcel Cost",
             icon: "warning",
-            showCancelButton: true,
-            confirmButtonColor: "#3085d6",
-            cancelButtonColor: "#d33",
-            confirmButtonText: "Confirm and Continue Payment!"
-        }).then((result) => {
-            if (result.isConfirmed) {
+            showCancelButton: false,
+            showDenyButton: true,
 
-                const parcelData = {
-                    ...data,
-                    cost: totalCost,
-                    created_by: user?.email,
-                    payment_status: 'unpaid',
-                    delivery_status: 'pending',
-                    trackingId: generateTrackingId(),
-                    orderTime: new Date().toISOString()
+            html: `
+      <div style="font-family:Inter,system-ui;text-align:left">
+
+        <!-- Parcel Type Badge -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <span style="
+            padding:4px 10px;
+            border-radius:999px;
+            font-size:12px;
+            font-weight:600;
+            background:${data.parcelType === 'document' ? '#e0f2fe' : '#dcfce7'};
+            color:${data.parcelType === 'document' ? '#0369a1' : '#166534'};
+          ">
+            ${data.parcelType.toUpperCase()}
+          </span>
+
+          <span style="font-size:13px;color:#6b7280">
+            Estimated Cost
+          </span>
+        </div>
+
+        <!-- Summary Card -->
+        <div style="
+          background:#f9fafb;
+          border-radius:14px;
+          padding:14px;
+          border:1px solid #e5e7eb;
+        ">
+
+          <p style="margin:0 0 6px;font-size:14px">
+            <strong>Parcel Name:</strong> ${data.parcelTitle}
+          </p>
+
+          ${data.parcelType === 'non-document'
+                    ? `<p style="margin:0 0 6px;font-size:14px">
+                   <strong>Weight:</strong> ${parcelWeight} KG
+                 </p>`
+                    : ''
                 }
 
-                console.log('Final Parcel Data to submit:', parcelData);
+          <p style="margin:0 0 6px;font-size:14px">
+            <strong>Pickup:</strong> ${data.senderServiceCenter}
+          </p>
 
-                // // save the parcel info to the database
-                // axiosSecure.post('/parcels', data)
-                //     .then(res => {
-                //         console.log('after saving parcel', res.data);
-                //         if (res.data.insertedId) {
-                //             navigate('/dashboard/my-parcels')
-                //             Swal.fire({
-                //                 position: "top-end",
-                //                 icon: "success",
-                //                 title: "Parcel has created. Please Pay",
-                //                 showConfirmButton: false,
-                //                 timer: 2500
-                //             });
-                //         }
-                //     })
+          <p style="margin:0;font-size:14px">
+            <strong>Delivery:</strong> ${data.receiverServiceCenter}
+          </p>
+        </div>
 
+        <!-- Route -->
+        <div style="
+          display:flex;
+          justify-content:center;
+          align-items:center;
+          gap:8px;
+          margin:14px 0;
+          font-size:13px;
+          color:#374151;
+        ">
+          <span>${data.senderRegion}</span>
+          <span style="font-size:16px">→</span>
+          <span>${data.receiverRegion}</span>
+        </div>
+
+        <!-- Cost Section -->
+        <div style="
+          background:#ecfdf5;
+          border-radius:12px;
+          padding:12px;
+          border:1px solid #bbf7d0;
+          text-align:center;
+        ">
+          <p style="margin:0;font-size:13px;color:#065f46">
+            Total Payable Amount
+          </p>
+          <p style="
+            margin:4px 0 0;
+            font-size:22px;
+            font-weight:700;
+            color:#047857;
+          ">
+            ৳ ${cost}
+          </p>
+        </div>
+
+        <!-- Footer Note -->
+        <p style="
+          margin-top:12px;
+          font-size:12px;
+          color:#6b7280;
+          text-align:center;
+        ">
+          Pickup time: 4 PM – 7 PM (Approx.)
+        </p>
+
+      </div>
+    `,
+
+            confirmButtonText: "Proceed to Payment",
+            denyButtonText: "Continue Editing",
+
+            confirmButtonColor: "#16a34a",
+            denyButtonColor: "#e6b845",
+
+            customClass: {
+                popup: "rounded-2xl shadow-xl px-6 py-5",
+                confirmButton: "font-semibold",
+                denyButton: "text-gray-700"
+            }
+        }).then(result => {
+            if (result.isConfirmed) {
+                const parcelData = {
+                    ...data,
+                    cost,
+                    created_by: user?.email,
+                    payment_status: "unpaid",
+                    delivery_status: "pending",
+                    trackingId: generateTrackingId(),
+                    orderTime: new Date().toISOString()
+                };
+
+                console.log("Final Parcel Data:", parcelData);
+
+                // save data to the server
+                axiosSecure.post('/parcels', parcelData)
+                    .then((res) => {
+                        console.log('Server Response:', res.data);
+                        if (res.data.insertedId) {
+                            // TODO: Redirect to payment gateway with necessary info
+                            Swal.fire({
+                                title: "Redirecting to Payment",
+                                html: `
+                                    <div style="font-family:Inter,system-ui;text-align:left">
+                                    <p style="font-size:14px;color:#374151">
+                                    Your parcel has been booked successfully!
+                                    <br/><br/>
+                                    <strong>Tracking ID:</strong> ${parcelData.trackingId}
+                                    <br/><br/>
+                                    Please proceed to the payment gateway to complete your booking.
+                                    </p>
+                                    </div>`,
+                                text: "You will be redirected to the payment gateway.",
+                                icon: "info",
+                                confirmButtonText: "OK",
+                                confirmButtonColor: "#2563eb",
+                                showCancelButton: false,
+                            }
+                            );
+
+
+                        }
+                    })
             }
         });
+    };
 
-    }
 
-  
     return (
         <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-gray-100 py-12">
             <div className="container mx-auto px-4 max-w-6xl grid">
-                {trackingId && (
+                {/* {trackingId && (
                     <div className="mb-6 p-4 bg-green-100 border border-green-300 text-green-800 rounded-lg text-center">
                         <strong>Your Tracking ID:</strong> {trackingId}
                     </div>
-                )}
+                )} */}
 
                 {/* Header Section */}
                 <div className="text-center mb-10">
@@ -139,7 +271,7 @@ const SendParcel = () => {
 
                 {/* Main Form Card */}
                 <div className="bg-white rounded-3xl shadow-2xl  border-2 border-[#C4D82E] p-8 md:p-10">
-                    <form onSubmit={handleSubmit(onSubmit)} className="space-y-10">
+                    <form onSubmit={handleSubmit(handleSendParcel)} className="space-y-10">
                         {/* Parcel Info Section */}
                         <div className="bg-linear-to-br from-gray-50 to-white p-6 rounded-2xl border border-gray-200">
                             <h2 className="text-2xl font-bold mb-6 text-[#1a4d5c] flex items-center gap-3">
@@ -225,15 +357,19 @@ const SendParcel = () => {
                                                 {...register("senderName")}
                                             />
                                         </div>
+
                                         <div className="form-control w-full">
-                                            <label className="label"><span className="label-text font-semibold text-gray-800">Pickup Warehouse</span></label>
-                                            <select className="select select-bordered w-full bg-white border-2 border-gray-200 focus:border-[#C4D82E] rounded-xl transition-all duration-200" {...register("senderServiceCenter", { required: true })}>
-                                                <option value="">Select Warehouse</option>
-                                                <option value="center_a">Center A</option>
-                                                <option value="center_b">Center B</option>
+                                            <label className="label"><span className="label-text font-semibold text-gray-800">Your Region</span></label>
+                                            <select className="select select-bordered w-full bg-white border-2 border-gray-200 focus:border-[#C4D82E] rounded-xl transition-all duration-200" {...register("senderRegion", { required: true })}>
+                                                <option value="">Select your region</option>
+                                                {uniqueRegions.map(region => (
+                                                    <option key={region} value={region}>{region.charAt(0).toUpperCase() + region.slice(1)}</option>
+                                                ))}
                                             </select>
-                                            {errors.senderServiceCenter && <span className="text-error text-sm">Required</span>}
+                                            {errors.senderRegion && <span className="text-error text-sm">Required</span>}
                                         </div>
+
+
                                     </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -259,18 +395,31 @@ const SendParcel = () => {
                                         </div>
                                     </div>
 
+
                                     <div className="form-control w-full">
-                                        <label className="label"><span className="label-text font-semibold text-gray-800">Your Region</span></label>
-                                        <select className="select select-bordered w-full bg-white border-2 border-gray-200 focus:border-[#C4D82E] rounded-xl transition-all duration-200" {...register("senderRegion", { required: true })}>
-                                            <option value="">Select your region</option>
-                                            {uniqueRegions.map(region => (
-                                                <option key={region} value={region}>{region.charAt(0).toUpperCase() + region.slice(1)}</option>
-                                            ))}
+
+
+                                        <label className="label"><span className="label-text font-semibold text-gray-800">Pickup Warehouse</span></label>
+                                        <select className="select select-bordered w-full bg-white border-2 border-gray-200 focus:border-[#C4D82E] rounded-xl transition-all duration-200" {...register("senderServiceCenter", { required: true })}>
+                                            <option value="">Select Warehouse</option>
+                                            {
+                                                getDistinctRegions(senderRegion).map(center => (
+                                                    <option key={center} value={center}>{center}</option>
+                                                ))
+                                            }
                                         </select>
-                                        {errors.senderRegion && <span className="text-error text-sm">Required</span>}
+                                        {errors.senderServiceCenter && <span className="text-error text-sm">Required</span>}
                                     </div>
                                 </div>
                             </div>
+
+
+
+
+
+
+
+
 
                             {/* Receiver Info Section */}
                             <div className="bg-linear-to-br from-green-50 to-white p-6 rounded-2xl border border-green-100 shadow-sm">
@@ -290,17 +439,20 @@ const SendParcel = () => {
                                             />
                                             {errors.receiverName && <span className="text-error text-sm">Name is required</span>}
                                         </div>
+
+
+
                                         <div className="form-control w-full">
-                                            <label className="label"><span className="label-text font-semibold text-gray-800">Delivery Warehouse</span></label>
-                                            <select className="select select-bordered w-full bg-white border-2 border-gray-200 focus:border-[#C4D82E] rounded-xl transition-all duration-200" {...register("receiverServiceCenter", { required: true })}>
-                                                <option value="">Select Warehouse</option>
-                                                <option value="center_a">Center A</option>
-                                                <option value="center_b">Center B</option>
+                                            <label className="label"><span className="label-text font-semibold text-gray-800">Receiver Region</span></label>
+                                            <select className="select select-bordered w-full bg-white border-2 border-gray-200 focus:border-[#C4D82E] rounded-xl transition-all duration-200" {...register("receiverRegion", { required: true })}>
+                                                <option value="">Select your region</option>
+                                                {uniqueRegions.map(region => (
+                                                    <option key={region} value={region}>{region.charAt(0).toUpperCase() + region.slice(1)}</option>
+                                                ))}
                                             </select>
-                                            {errors.receiverServiceCenter && <span className="text-error text-sm">Required</span>}
+                                            {errors.receiverRegion && <span className="text-error text-sm">Required</span>}
                                         </div>
                                     </div>
-
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div className="form-control w-full">
                                             <label className="label"><span className="label-text font-semibold text-gray-800">Receiver Address</span></label>
@@ -325,14 +477,16 @@ const SendParcel = () => {
                                     </div>
 
                                     <div className="form-control w-full">
-                                        <label className="label"><span className="label-text font-semibold text-gray-800">Receiver Region</span></label>
-                                        <select className="select select-bordered w-full bg-white border-2 border-gray-200 focus:border-[#C4D82E] rounded-xl transition-all duration-200" {...register("receiverRegion", { required: true })}>
-                                            <option value="">Select your region</option>
-                                            {uniqueRegions.map(region => (
-                                                <option key={region} value={region}>{region.charAt(0).toUpperCase() + region.slice(1)}</option>
-                                            ))}
+                                        <label className="label"><span className="label-text font-semibold text-gray-800">Delivery Warehouse</span></label>
+                                        <select className="select select-bordered w-full bg-white border-2 border-gray-200 focus:border-[#C4D82E] rounded-xl transition-all duration-200" {...register("receiverServiceCenter", { required: true })}>
+                                            <option value="">Select Warehouse</option>
+                                            {
+                                                getDistinctRegions(receiverRegion || '').map(center => (
+                                                    <option key={center} value={center}>{center}</option>
+                                                ))
+                                            }
                                         </select>
-                                        {errors.receiverRegion && <span className="text-error text-sm">Required</span>}
+                                        {errors.receiverServiceCenter && <span className="text-error text-sm">Required</span>}
                                     </div>
                                 </div>
                             </div>
@@ -379,18 +533,6 @@ const SendParcel = () => {
                     </form>
                 </div>
             </div>
-
-            {/* Confirm Parcel Modal */}
-            <ConfirmParcelModal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                onConfirm={handleConfirmBooking}
-                loading={loading}
-                cost={cost}
-                user={user}
-                bookingData={bookingData}
-                trackingId={trackingId}
-            />
 
         </div>
 
