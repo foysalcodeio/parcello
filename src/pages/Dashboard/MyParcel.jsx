@@ -4,10 +4,12 @@ import useAxiosSecure from '../../hooks/useAxiosSecure';
 import { FaTrashCan, FaPaypal } from 'react-icons/fa6';
 import { LuView } from 'react-icons/lu';
 import Swal from 'sweetalert2';
+import { useNavigate } from 'react-router';
 
 const MyParcel = () => {
     const { user } = useAuth();
     const axiosSecure = useAxiosSecure();
+    const navigate = useNavigate();
 
     const {
         data: parcels = [],
@@ -34,22 +36,25 @@ const MyParcel = () => {
         }).then((result) => {
             if (result.isConfirmed) {
                 axiosSecure.delete(`/parcels/${id}`)
-                .then((res) => {
-                    if (res.data.deletedCount) {
-                        refetch();
-                        Swal.fire(
-                            'Deleted!',
-                            'Your parcel request has been deleted.',
-                            'success'
-                        );
-                    }
-                    
-                });
+                    .then((res) => {
+                        if (res.data.deletedCount) {
+                            refetch();
+                            Swal.fire(
+                                'Deleted!',
+                                'Your parcel request has been deleted.',
+                                'success'
+                            );
+                        }
+
+                    });
             }
         });
     };
 
     const handlePayment = async (parcel) => {
+
+        navigate(`/dashboard/payment/${parcel._id}`);
+                
         const paymentInfo = {
             cost: parcel.cost,
             parcelId: parcel._id,
@@ -57,12 +62,12 @@ const MyParcel = () => {
             parcelName: parcel.parcelName,
         };
 
-        const res = await axiosSecure.post(
-            '/payment-checkout-session',
-            paymentInfo
-        );
+        // const res = await axiosSecure.post(
+        //     '/payment-checkout-session',
+        //     paymentInfo
+        // );
 
-        window.location.assign(res.data.url);
+        // window.location.assign(res.data.url);
     };
 
     if (isLoading) {
@@ -109,11 +114,10 @@ const MyParcel = () => {
                                 <td>{parcel.orderTime}</td>
                                 <td>
                                     <span
-                                        className={`badge ${
-                                            parcel.delivery_status === 'delivered'
+                                        className={`badge ${parcel.delivery_status === 'delivered'
                                                 ? 'badge-success'
                                                 : 'badge-warning'
-                                        }`}
+                                            }`}
                                     >
                                         {parcel.delivery_status}
                                     </span>
@@ -168,11 +172,10 @@ const MyParcel = () => {
                                     {parcel.parcelTitle}
                                 </h3>
                                 <span
-                                    className={`badge ${
-                                        parcel.delivery_status === 'delivered'
+                                    className={`badge ${parcel.delivery_status === 'delivered'
                                             ? 'badge-success'
                                             : 'badge-warning'
-                                    }`}
+                                        }`}
                                 >
                                     {parcel.delivery_status}
                                 </span>
@@ -200,12 +203,7 @@ const MyParcel = () => {
                                         Paid
                                     </span>
                                 ) : (
-                                    <button
-                                        onClick={() =>
-                                            handlePayment(parcel)
-                                        }
-                                        className="badge badge-primary badge-outline"
-                                    >
+                                    <button onClick={() => handlePayment(parcel._id)}>
                                         <FaPaypal /> Pay
                                     </button>
                                 )}
