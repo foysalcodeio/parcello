@@ -1,34 +1,54 @@
-import { CardElement, useElements, useStripe } from '@stripe/react-stripe-js';
-
-const stripe = useStripe();
-const elements = useElements();
+import { CardElement, useElements, useStripe } from "@stripe/react-stripe-js";
+import { set } from "react-hook-form";
+import { useState } from 'react';
 
 const PaymentForm = () => {
+  const stripe = useStripe();     // ✅ hooks INSIDE component
+  const elements = useElements(); // ✅ hooks INSIDE component
 
-    const handleSubmit = (event) => {
-        event.preventDefault();
-        // Handle payment submission logic here
-        if(!stripe || !elements) {
-            return;
-        }
 
-        const card = elements.getElement(CardElement);
-        if(card == null) {
-            return;
-        }
-    };
+  const [error, setError] = useState('');
 
-    return (
-        <div>
-            <form onSubmit={handleSubmit}>
-                <CardElement>
-                    <button type="submit" disabled={!stripe}>
-                        pay for parcel pickup
-                    </button>
-                </CardElement>
-            </form>
-        </div>
-    );
+
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+
+
+
+    if (!stripe || !elements) {
+      return;
+    }
+
+    const card = elements.getElement(CardElement);
+    if (!card) {
+      return;
+    }
+
+    const { error, paymentMethod } = await stripe.createPaymentMethod({
+      type: "card",
+      card,
+    });
+
+    if (error) {
+        setError(error.message);
+        console.log("Payment error:", error);
+    } else {
+        setError('');
+        console.log("Payment success:", paymentMethod);
+    }
+  };
+
+  return (
+    <form className="space-y-4 big-white p-6 rounded-xl shadow-md w-full max-w-md mx-auto"
+     onSubmit={handleSubmit}>
+      <CardElement className='' />
+      <button type="submit" disabled={!stripe} className="btn btn-primary w-full">
+        Pay for parcel pickup
+      </button>
+        {error && <p className="text-red-500">{error}</p>}
+    </form>
+  );
 };
 
 export default PaymentForm;
