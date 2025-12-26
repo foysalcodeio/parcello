@@ -1,10 +1,13 @@
 import { CardElement, useElements, useStripe } from "@stripe/react-stripe-js";
 import { set } from "react-hook-form";
 import { useState } from 'react';
+import { useParams } from "react-router";
 
 const PaymentForm = () => {
   const stripe = useStripe();     // ✅ hooks INSIDE component
   const elements = useElements(); // ✅ hooks INSIDE component
+  const { parcelId } = useParams();
+  console.log("Processing payment for parcel ID:", parcelId);
 
 
   const [error, setError] = useState('');
