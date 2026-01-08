@@ -28,6 +28,8 @@ const PaymentForm = () => {
 
   console.log("Parcel Info:", parcelInfo);
   const amount = parcelInfo?.cost || 0; // Fallback to 0 if cost is undefined
+  const amountInCents = Math.round(amount * 100); // Stripe expects amount in cents
+  console.log("Amount to be charged (in cents):", amountInCents);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -55,7 +57,43 @@ const PaymentForm = () => {
       setError('');
       console.log("Payment success:", paymentMethod);
     }
-  };
+
+    // Further processing like sending paymentMethod.id to backend for charging
+    const res = await axiosSecure.post('/create-payment-intent', {
+      amountInCents,
+      parcelId
+    });
+
+    console.log("Payment Intent Response:", res.data);
+
+    const clientSecret = res.data.clientSecret;
+
+    const result = await stripe.confirmCardPayment(clientSecret, {
+      payment_method: {
+        card: elements.getElement(CardElement),
+        billing_details: {
+          // Include any additional billing details if needed here
+          
+        }
+      }
+    });
+
+    if (result.error) {
+      setError(result.error.message);
+      console.log("Payment confirmation error:", result.error); 
+    } else {
+      if (result.paymentIntent.status === 'succeeded') {
+        setError('');
+        console.log("Payment succeeded:", result.paymentIntent);
+        // Optionally, you can notify your backend about the successful payment here
+        console.log("Payment completed successfully for parcel ID:", parcelId);
+        console.log(result);
+      }
+    }
+
+
+      
+    };
 
   return (
     <form className="space-y-4 big-white p-6 rounded-xl shadow-md w-full max-w-md mx-auto"
