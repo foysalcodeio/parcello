@@ -1,120 +1,149 @@
 import { CardElement, useElements, useStripe } from "@stripe/react-stripe-js";
-import { useState } from 'react';
-import { useParams } from "react-router";
+import { useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import Swal from "sweetalert2";
+
 import useAxiosSecure from "../../../hooks/useAxiosSecure";
-import { useQuery } from "@tanstack/react-query";
+import useAuth from "../../../hooks/useAuth";
+
 
 const PaymentForm = () => {
-  const stripe = useStripe();     // ✅ hooks INSIDE component
-  const elements = useElements(); // ✅ hooks INSIDE component
+  const stripe = useStripe();
+  const elements = useElements();
   const { parcelId } = useParams();
-  console.log("Processing payment for parcel ID:", parcelId);
+  const { user } = useAuth();
   const axiosSecure = useAxiosSecure();
+  const queryClient = useQueryClient();
 
-  const [error, setError] = useState('');
 
-  // data load from backend about parcel
+  const [error, setError] = useState("");
+  const [processing, setProcessing] = useState(false);
+  const [success, setSuccess] = useState("");
+
+  const navigate = useNavigate();
+
+
+  // 🔹 Load parcel data
   const { isPending, data: parcelInfo = {} } = useQuery({
-    queryKey: ['parcels', parcelId],
+    queryKey: ["parcel", parcelId],
     queryFn: async () => {
       const res = await axiosSecure.get(`/parcels/${parcelId}`);
       return res.data;
-    }
-  })
+    },
+  });
 
-  if (isPending) {
-    return <div>Loading...</div>;
-  }
+  if (isPending) return <div>Loading...</div>;
 
-  console.log("Parcel Info:", parcelInfo);
-  const amount = parcelInfo?.cost || 0; // Fallback to 0 if cost is undefined
-  const amountInCents = Math.round(amount * 100); // Stripe expects amount in cents
-  console.log("Amount to be charged (in cents):", amountInCents);
-
-  const handleSubmit = async (event) => {
-    event.preventDefault();
+  const amount = parcelInfo?.cost || 0;
+  const amountInCents = Math.round(amount * 100);
+  const isPaid = parcelInfo?.paymentStatus === "paid";
 
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
 
-    if (!stripe || !elements) {
-      return;
-    }
+    if (!stripe || !elements || amountInCents <= 0 || isPaid) return;
 
-    const card = elements.getElement(CardElement);
-    if (!card) {
-      return;
-    }
+    setProcessing(true);
+    setError("");
+    setSuccess("");
 
-    const { error, paymentMethod } = await stripe.createPaymentMethod({
-      type: "card",
-      card,
-    });
+    try {
+      // 1️⃣ Create payment intent
+      const intentRes = await axiosSecure.post("/create-payment-intent", {
+        amountInCents,
+      });
 
-    if (error) {
-      setError(error.message);
-      console.log("Payment error:", error);
-    } else {
-      setError('');
-      console.log("Payment success:", paymentMethod);
-    }
+      const clientSecret = intentRes.data.clientSecret;
+      if (!clientSecret) {
+        throw new Error("Client secret not found");
+      }
 
-    // Further processing like sending paymentMethod.id to backend for charging
-    const res = await axiosSecure.post('/create-payment-intent', {
-      amountInCents,
-      parcelId
-    });
+      ;
 
-    console.log("Payment Intent Response:", res.data);
+      // 2️⃣ Confirm card payment
+      const result = await stripe.confirmCardPayment(clientSecret, {
+        payment_method: {
+          card: elements.getElement(CardElement),
+          billing_details: {
+            name: user?.displayName || "Guest User",
+            email: user?.email,
+          },
+        },
+      });
 
-    const clientSecret = res.data.clientSecret;
+      if (result.error) {
+        setError(result.error.message);
+        return;
+      }
 
-    const result = await stripe.confirmCardPayment(clientSecret, {
-      payment_method: {
-        card: elements.getElement(CardElement),
-        billing_details: {
-          // Include any additional billing details if needed here
-          
+      // 3️⃣ Save payment info
+      if (result.paymentIntent.status === "succeeded") {
+        const paymentData = {
+          parcelId,
+          email: user?.email,
+          amount,
+          transactionId: result.paymentIntent.id,
+          paymentMethod: result.paymentIntent.payment_method,
+        };
+
+
+
+        const paymentRes = await axiosSecure.post("/payments", paymentData);
+        console.log(paymentRes);
+
+        if (paymentRes.data.insertedId) {
+          setSuccess("✅ Payment successful!");
+
+          await Swal.fire({
+            icon: 'success',
+            title: 'Payment Successful',
+            html: `<p>Your transaction ID: <strong>${result.paymentIntent.id}</strong></p>`,
+            confirmButtonText: 'OK',
+          });
+
+          // refresh cached data
+          queryClient.invalidateQueries(["my-parcels"]);
+          queryClient.invalidateQueries(["parcel", parcelId]);
+
+          // ✅ correct navigation
+          navigate("/dashboard/my-parcel");
         }
-      }
-    });
 
-    if (result.error) {
-      setError(result.error.message);
-      console.log("Payment confirmation error:", result.error); 
-    } else {
-      if (result.paymentIntent.status === 'succeeded') {
-        setError('');
-        console.log("Payment succeeded:", result.paymentIntent);
-        // Optionally, you can notify your backend about the successful payment here
-        console.log("Payment completed successfully for parcel ID:", parcelId);
-        console.log(result);
       }
+    } catch (err) {
+      setError(err?.response?.data?.message || err.message || "Payment failed");
+    } finally {
+      setProcessing(false);
     }
-
-
-      
-    };
+  };
 
   return (
-    <form className="space-y-4 big-white p-6 rounded-xl shadow-md w-full max-w-md mx-auto"
-      onSubmit={handleSubmit}>
-      <CardElement className='' />
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-4 bg-white p-6 rounded-xl shadow-md w-full max-w-md mx-auto"
+    >
+      <CardElement />
+
       <button
         type="submit"
-        disabled={!stripe}
-        className="btn btn-primary w-full relative group overflow-hidden transition-all duration-300"
+        disabled={!stripe || processing || isPaid}
+        className="btn btn-primary w-full relative group overflow-hidden"
       >
-        {/* Normal text */}
-        <span className="block group-hover:hidden transition-all duration-300">
-          Pay ${amount}
+        <span className="block group-hover:hidden">
+          {isPaid ? "Already Paid" : processing ? "Processing..." : `Pay $${amount}`}
         </span>
 
-        {/* Hover text */}
-        <span className="hidden group-hover:block text-yellow-300 transition-all duration-300">
-          Pickup parcel now
-        </span>
+        {!isPaid && (
+          <span className="hidden group-hover:block text-yellow-300">
+            Pickup parcel now
+          </span>
+        )}
       </button>
+
       {error && <p className="text-red-500">{error}</p>}
+      {success && <p className="text-green-600">{success}</p>}
     </form>
   );
 };
