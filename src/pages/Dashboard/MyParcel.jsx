@@ -7,6 +7,7 @@ import Swal from 'sweetalert2';
 import { useNavigate } from 'react-router';
 
 const MyParcel = () => {
+
     const { user } = useAuth();
     const axiosSecure = useAxiosSecure();
     const navigate = useNavigate();
@@ -54,7 +55,7 @@ const MyParcel = () => {
     const handlePayment = async (parcel) => {
 
         navigate(`/dashboard/payment/${parcel._id}`);
-                
+
         const paymentInfo = {
             cost: parcel.cost,
             parcelId: parcel._id,
@@ -79,7 +80,7 @@ const MyParcel = () => {
     }
 
     return (
-        <div className="p-4 md:p-8 max-w-7xl mx-auto">
+        <div className="p-4 md:p-8 max-w-8xl mx-auto">
             {/* HEADER */}
             <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <h2 className="text-2xl font-bold">My Parcels</h2>
@@ -90,7 +91,7 @@ const MyParcel = () => {
 
             {/* ================= DESKTOP TABLE ================= */}
             <div className="hidden md:block overflow-x-auto rounded-xl shadow bg-base-100">
-                <table className="table table-zebra">
+                <table className="table table-zebra text-center w-full">
                     <thead className="bg-base-200">
                         <tr>
                             <th>#</th>
@@ -99,6 +100,7 @@ const MyParcel = () => {
                             <th>Cost</th>
                             <th>Date</th>
                             <th>Status</th>
+                            <th>Payment</th>
                             <th className="text-center">Actions</th>
                         </tr>
                     </thead>
@@ -109,19 +111,47 @@ const MyParcel = () => {
                                 <td className="font-semibold">
                                     {parcel.parcelTitle}
                                 </td>
-                                <td>{parcel.parcelType}</td>
+      
+                                <td className="font-semibold">
+                                    {parcel.parcelType === 'document' ? (
+                                        <span className="badge badge-primary">
+                                            {parcel.parcelType}
+                                        </span>
+                                    ) : (
+                                        <span className="badge badge-secondary">
+                                            {parcel.parcelType}
+                                        </span>
+                                    )}
+                                </td>
+
+
+
                                 <td>৳ {parcel.cost}</td>
                                 <td>{parcel.orderTime}</td>
                                 <td>
                                     <span
                                         className={`badge ${parcel.delivery_status === 'delivered'
-                                                ? 'badge-success'
-                                                : 'badge-warning'
+                                            ? 'badge-success'
+                                            : 'badge-warning'
                                             }`}
                                     >
                                         {parcel.delivery_status}
                                     </span>
                                 </td>
+                                {parcel.paymentStatus === 'paid' ? (
+                                    <th>
+                                        <span className="badge badge-success badge-outline">
+                                            Paid
+                                        </span>
+                                    </th>
+                                ) : (
+                                    <th>
+                                        <span className="badge badge-warning badge-outline">
+                                            Unpaid
+                                        </span>
+                                    </th>
+                                )
+                                }
                                 <td>
                                     <div className="flex justify-center gap-2">
                                         <button className="btn btn-sm btn-info">
@@ -129,18 +159,11 @@ const MyParcel = () => {
                                         </button>
 
                                         {parcel.paymentStatus === 'paid' ? (
-                                            <span className="badge badge-success badge-outline">
-                                                Paid
+                                            <span className="">
+
                                             </span>
                                         ) : (
-                                            <button
-                                                onClick={() =>
-                                                    handlePayment(parcel)
-                                                }
-                                                className="btn btn-sm btn-primary text-black"
-                                            >
-                                                <FaPaypal /> Pay
-                                            </button>
+                                            <button className='btn btn-sm btn-primary' onClick={() => handlePayment(parcel)}>Pay</button>
                                         )}
 
                                         <button
@@ -173,8 +196,8 @@ const MyParcel = () => {
                                 </h3>
                                 <span
                                     className={`badge ${parcel.delivery_status === 'delivered'
-                                            ? 'badge-success'
-                                            : 'badge-warning'
+                                        ? 'badge-success'
+                                        : 'badge-warning'
                                         }`}
                                 >
                                     {parcel.delivery_status}
@@ -203,7 +226,8 @@ const MyParcel = () => {
                                         Paid
                                     </span>
                                 ) : (
-                                    <button onClick={() => handlePayment(parcel._id)}>
+                                    <button className=''
+                                        onClick={() => handlePayment(parcel)}>
                                         <FaPaypal /> Pay
                                     </button>
                                 )}
