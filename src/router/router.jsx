@@ -7,6 +7,14 @@ import Register from "../pages/Authentication/Register";
 import Coverage from "../pages/Coverage/Coverage";
 import SendParcel from "../pages/SendParcel/SendParcel";
 import PrivateRoute from "./PrivateRoute";
+import DashBoardLayout from "../layouts/DashBoardLayout";
+import MyParcel from "../pages/Dashboard/MyParcel";
+import Payment from "../pages/Dashboard/Payment/Payment";
+import PaymentHistory from "../pages/Dashboard/PaymentHistory";
+import TrackParcel from "../pages/Dashboard/TrackParcel";
+import BeARider from "../pages/Dashboard/BeARider/BeARider";
+import PendingRiders from "../pages/Dashboard/PendingRiders/PendingRiders";
+import ActiveRiders from "../pages/Dashboard/ActiveRiders/ActiveRiders";
 
 export const router = createBrowserRouter([
   {
@@ -23,6 +31,11 @@ export const router = createBrowserRouter([
         loader: () => fetch("/data/ServiceCenter.json"),
       },
       {
+        path : "bearider",
+        element: <PrivateRoute> <BeARider></BeARider> </PrivateRoute>,
+        loader: () => fetch("/data/ServiceCenter.json"),
+      },
+      {
         path: "sendparcel",
         element: (
           <PrivateRoute>
@@ -31,6 +44,7 @@ export const router = createBrowserRouter([
         ),
         loader: () => fetch("/data/ServiceCenter.json"),
       },
+      
     ],
   },
   {
@@ -47,4 +61,41 @@ export const router = createBrowserRouter([
       },
     ],
   },
-]);
+  {
+      path: '/dashboard',
+      element: <PrivateRoute> <DashBoardLayout /> </PrivateRoute>,
+      children: [
+          // Dashboard child routes go here
+          {
+              path: 'myparcels',
+              Component: MyParcel,
+          },
+          {
+             path: 'payment/:parcelId',
+             Component: Payment,
+          },
+          {
+            path: 'paymenthistory',
+            Component: PaymentHistory
+          },
+          {
+            path: 'track',
+            Component: TrackParcel
+          },
+          {
+            path: 'pending-riders',
+            Component: PendingRiders,
+          },
+          {
+            path: 'active-riders',
+            Component: ActiveRiders,
+          }
+      ]
+  },
+], {
+  // ✅ This is the key fix for your hydration warning
+  hydrationOptions: {
+    fallbackElement: <div className="text-center mt-20 text-lg">Loading...</div>,
+  },
+}
+);
